@@ -78,7 +78,7 @@ static int cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct nfq_data *
   if (len >= 0) {
     struct iphdr *ip = (struct iphdr *)packetData;
     if (ip->protocol != IPPROTO_UDP)
-      fprintf(stderr, "Error: it isn't udp packet, maybe there is not iptables rule?");
+      fprintf(stderr, "Error: it isn't udp packet, maybe there is not iptables rule?\n");
     else {
       struct udphdr *udp = (struct udphdr *)(packetData + (ip->ihl * 4));
       if (send_udp_packet(ip->saddr, ip->daddr, udp->source, udp->dest, cb_data) != 0)

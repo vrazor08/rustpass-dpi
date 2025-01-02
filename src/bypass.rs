@@ -2,7 +2,7 @@ use std::{io, os::fd::{AsRawFd, FromRawFd, IntoRawFd, RawFd}, rc::Rc};
 use std::time::Duration;
 use std::ffi::CString;
 
-use anyhow;
+use anyhow::bail;
 use tokio_uring::net::TcpStream;
 use tokio_uring::buf::BoundedBuf;
 use socket2::{self, Socket};
@@ -50,16 +50,14 @@ pub struct SplitPosition {
 #[derive(Clone, Debug)]
 pub struct BypassOptions {
   split_positions: Vec<SplitPosition>,
-  pub fake_ttl: u32,
+  fake_ttl: u32,
   pub oob_data: u8,
   pub timeout: Option<Duration>,
-  // pub udp_bypass: Option<UdpBypassHelpData>
-  // pub md5_option: Option<libc::md>
 }
 
 impl BypassOptions {
-  pub fn new() -> Self {
-    Self{split_positions: Vec::new(), fake_ttl: 6, oob_data: 97, timeout: None}
+  pub fn new(fake_ttl: u32) -> Self {
+    Self{split_positions: Vec::new(), fake_ttl, oob_data: 97, timeout: None}
   }
 
   pub async fn desync(&self, fd: RawFd, stream: Rc<TcpStream>, mut buf: Vec<u8>, size: usize) -> Result<Vec<u8>, anyhow::Error> {
@@ -100,7 +98,7 @@ impl BypassOptions {
           BypassOptions::set_ttl(fd, DEFAULT_TTL)?;
           prev_pos = current_pos as i32;
         }
-        _ => anyhow::bail!("unimplemented type")
+        _ => bail!("unimplemented type")
       }
     }
     if current_pos != size {
@@ -137,12 +135,12 @@ impl BypassOptions {
     debug!("current_pos = {current_pos}");
     let name = CString::new("name").unwrap();
     let ffd = unsafe { libc::memfd_create(name.as_ptr(), 0)};
-    if ffd < 0 { fd.into_raw_fd(); anyhow::bail!("ffd < 0"); }
+    if ffd < 0 { fd.into_raw_fd(); bail!("ffd < 0"); }
     unsafe {
       w_bytes = libc::write(ffd, FAKE_TLS.as_ptr() as _, current_pos);
       debug!("fake bytes write: {w_bytes}", );
       libc::lseek(ffd, 0, libc::SEEK_SET);
-      if libc::sendfile(fd, ffd, 0 as _, current_pos) < 0 { fd.into_raw_fd(); anyhow::bail!("sendfile < 0"); }
+      if libc::sendfile(fd, ffd, 0 as _, current_pos) < 0 { fd.into_raw_fd(); bail!("sendfile < 0"); }
       libc::lseek(ffd, 0, libc::SEEK_SET);
       w_bytes = libc::write(ffd, buf.as_ptr() as _, current_pos);
       debug!("good bytes write: {w_bytes}");

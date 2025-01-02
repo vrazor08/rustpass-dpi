@@ -3,9 +3,8 @@ use std::ptr::null_mut;
 use std::os::raw::c_char;
 use std::str::FromStr;
 
-use anyhow;
-use libc;
-use nix::unistd::getuid;
+use anyhow::bail;
+use libc::{__errno_location, getuid};
 
 const FAKE_PKT_LEN: usize = 64;
 static FAKE_UDP_PKT: [u8; FAKE_PKT_LEN] = [0; FAKE_PKT_LEN];
@@ -62,12 +61,12 @@ impl UdpBypassHelpData {
   pub fn init_queue(&mut self) -> Result<(), anyhow::Error> {
     unsafe {
       if init_nfq(&(self.bypass_data), &mut (self.h), &mut (self.qh)) != 0 {
-        let errno = *libc::__errno_location();
-        anyhow::bail!("init_nfq error: errno={}", errno);
+        let errno = *__errno_location();
+        bail!("init_nfq error: errno={}", errno);
       };
     }
-    if self.h.is_null() { anyhow::bail!("NfqHandle is null"); }
-    if self.qh.is_null() { anyhow::bail!("NfqQHandle is null"); }
+    if self.h.is_null() { bail!("NfqHandle is null"); }
+    if self.qh.is_null() { bail!("NfqQHandle is null"); }
     Ok(())
   }
 
@@ -77,8 +76,8 @@ impl UdpBypassHelpData {
     }
   }
 
-  pub fn desync_udp(mut self) -> Result<std::thread::JoinHandle<()>, anyhow::Error>{
-    if !getuid().is_root() { anyhow::bail!("You need to be a root"); }
+  pub fn desync_udp(mut self) -> Result<std::thread::JoinHandle<()>, anyhow::Error> {
+    if unsafe { getuid() } != 0 { bail!("You need to be a root"); }
     Ok(std::thread::spawn(move || {
       self.run_nfq_loop();
     }))
@@ -114,6 +113,7 @@ impl Debug for BypassData {
       .finish()
   }
 }
+
 impl Debug for UdpBypassHelpData {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     let h_fmt: &dyn Debug = if self.h.is_null() { &"NULL" }

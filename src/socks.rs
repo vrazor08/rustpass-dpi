@@ -1,15 +1,11 @@
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
-// use std::time::Duration;
 
+use anyhow::bail;
 use tokio_uring::net::TcpStream;
-// use log::{trace, debug, info, warn, error};
 
 pub const SOCKS4_VERSION: u8 = 4u8;
-pub const SOCKS5_VERSION: u8 = 5u8;
 pub const SOCKS4_CONNECT_COMMAND: u8 = 1u8;
 pub const SOCKS4_BIND_COMMAND: u8 = 2u8;
-
-// const READ_TIMEOUT: Option<Duration> = Some(Duration::new(2, 0));
 
 #[derive(Debug)]
 pub enum Socks4Phase {
@@ -27,13 +23,13 @@ pub struct Socks4 {
 
 impl Socks4 {
   pub fn is_connect_req(input: &[u8], client_stream: TcpStream) -> Result<Self, anyhow::Error> {
-    if input.len() < 3 || input.len() > 30 {
-      anyhow::bail!("it isn't fisrt socks packet because len: {}", input.len());
+    if input.len() < 8 || input.len() > 30 {
+      bail!("it isn't fisrt socks packet because len: {}", input.len());
     }
     match input[0] {
       SOCKS4_VERSION => {
         if input[1] != SOCKS4_CONNECT_COMMAND && input[1] != SOCKS4_BIND_COMMAND {
-          anyhow::bail!("it isn't fisrt socks{} packet", input[0]);
+          bail!("it isn't fisrt socks{} packet", input[0]);
         }
         let port = u16::from_be_bytes([input[2], input[3]]);
         let ip = Ipv4Addr::new(input[4], input[5], input[6], input[7]);
@@ -45,13 +41,12 @@ impl Socks4 {
           client_stream
         })
       }
-      SOCKS5_VERSION => anyhow::bail!("socks5 not suppoted"),
-      ver => anyhow::bail!("unsupported socks version: {ver}")
+      ver => bail!("unsupported socks version: {ver}")
     }
   }
 
   pub async fn connect_to_dst(&mut self, input: &[u8]) -> Result<(), anyhow::Error> {
-    if input.len() < 8 { anyhow::bail!("input len must be >= 8"); }
+    assert!(input.len() < 8, "input len must be >= 8 given: {}", input.len());
     match &self.phase {
       Socks4Phase::ConnectReq => {
         match TcpStream::connect(self.proxy_addr).await {
@@ -71,7 +66,7 @@ impl Socks4 {
           }
         }
       }
-      socks_phase => anyhow::bail!("Socks4 Phase for connectmust be {:?}, but current: {:?}", Socks4Phase::ConnectReq, socks_phase)
+      socks_phase => bail!("Socks4 Phase for connect must be {:?}, but current: {:?}", Socks4Phase::ConnectReq, socks_phase)
     }
     Ok(())
   }

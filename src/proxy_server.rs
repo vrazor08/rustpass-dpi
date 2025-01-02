@@ -4,7 +4,6 @@ use std::rc::Rc;
 use std::time::Duration;
 use std::io;
 
-use anyhow::Context;
 use tokio_uring::{self, buf::BoundedBuf};
 use tokio::time::timeout;
 use log::{debug, info, warn, error};
@@ -25,7 +24,6 @@ pub struct ProxyServer {
   pub bypass_options: BypassOptions
 }
 
-#[inline]
 fn is_tls_chello(input: &[u8]) -> bool {
   input.len() > 5 && u16::from_be_bytes([input[0], input[1]]) == 0x1603 && input[5] == 1
 }
@@ -44,7 +42,7 @@ impl ProxyServer {
       socks_version: version,
       server_addr: addr,
       msg_buf_size: BUF_SIZE,
-      bypass_options: BypassOptions::new()
+      bypass_options: BypassOptions::new(6)
     }
   }
 
@@ -98,7 +96,7 @@ impl ProxyServer {
       let proxy_fd = proxy_stream_rc.as_raw_fd();
       if is_tls_chello(&client_buf[..client_size]) {
         if self.bypass_options.at_least_one_option() {
-          info!("desync");
+          debug!("desync");
           client_buf = self.bypass_options.desync(proxy_fd, proxy_stream_rc.clone(), client_buf, client_size).await?;
         } else {
           error!("It also doesn't support");
@@ -125,12 +123,10 @@ impl ProxyServer {
     }
     let mut socks4 = Socks4::is_connect_req(&first_input[..n], stream)?;
     socks4.connect_to_dst(&first_input[..n]).await?;
-    debug!("connect to dst");
-    socks4.proxy_stream.as_ref().inspect(|proxy_stream| {
-      set_read_timeout(proxy_stream.as_raw_fd(), READ_TIMEOUT).unwrap();
-      proxy_stream.set_nodelay(true).unwrap();
-      // BypassOptions::enable_tfo(proxy_stream.as_raw_fd()).unwrap();
-    });
+    if let Some(pr_stream) = socks4.proxy_stream.as_ref() {
+      set_read_timeout(pr_stream.as_raw_fd(), READ_TIMEOUT)?;
+      pr_stream.set_nodelay(true)?;
+    }
     socks4.phase = Socks4Phase::Proxing;
     self.socks_proxy(socks4).await?;
     warn!("exit from proxy function");
@@ -139,9 +135,8 @@ impl ProxyServer {
 
   pub fn start_server(self) {
     assert_eq!(self.socks_version, 4);
-
     tokio_uring::start(async {
-      let listener = tokio_uring::net::TcpListener::bind(self.server_addr).context("TcpListener::bind").unwrap();
+      let listener = tokio_uring::net::TcpListener::bind(self.server_addr).unwrap();
       loop {
         let (stream, socket_addr) = listener.accept().await.unwrap();
         let proxy_server = self.clone();
