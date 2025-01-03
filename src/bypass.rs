@@ -6,7 +6,7 @@ use anyhow::bail;
 use tokio_uring::net::TcpStream;
 use tokio_uring::buf::BoundedBuf;
 use socket2::{self, Socket};
-use log::{debug, info};
+use log::{trace, debug};
 use libc;
 
 const DEFAULT_TTL: u32 = 64;
@@ -47,30 +47,30 @@ pub struct SplitPosition {
   pub desync_type: DesyncType
 }
 
+pub type SplitPositions = Vec<SplitPosition>;
+
 #[derive(Clone, Debug)]
 pub struct BypassOptions {
-  split_positions: Vec<SplitPosition>,
-  fake_ttl: u32,
+  split_positions: SplitPositions,
+  pub fake_ttl: u32,
   pub oob_data: u8,
   pub timeout: Option<Duration>,
 }
 
 impl BypassOptions {
-  pub fn new(fake_ttl: u32) -> Self {
-    Self{split_positions: Vec::new(), fake_ttl, oob_data: 97, timeout: None}
+  pub fn new() -> Self {
+    Self{split_positions: Vec::new(), fake_ttl: 6, oob_data: 97, timeout: None}
   }
 
   pub async fn desync(&self, fd: RawFd, stream: Rc<TcpStream>, mut buf: Vec<u8>, size: usize) -> Result<Vec<u8>, anyhow::Error> {
     let mut prev_pos: i32 = 0;
     let mut current_pos: usize = 0;
     for i in 0..self.split_positions.len() {
-      // current_pos = self.split_positions[i].pos as usize;
       if self.split_positions[i].pos < 0 { current_pos = size - (self.split_positions[i].pos.unsigned_abs() as usize); }
       else { current_pos = self.split_positions[i].pos as usize; }
       if prev_pos < 0 { prev_pos += size as i32 }
-      info!("prev_pos = {prev_pos}, current_pos = {current_pos}");
+      debug!("prev_pos = {prev_pos}, current_pos = {current_pos}");
       if current_pos >= size {
-        info!("split_pos >= size");
         let (res, slice) = stream.write(buf.slice(prev_pos as usize..size)).submit().await; res?;
         buf = slice.into_inner();
         return Ok(buf);
@@ -102,7 +102,6 @@ impl BypassOptions {
       }
     }
     if current_pos != size {
-      // BypassOptions::set_ttl(fd, DEFAULT_TTL)?;
       let (res, slice) = stream.write(buf.slice(current_pos..size)).submit().await; res?;
       buf = slice.into_inner();
     }
@@ -111,7 +110,7 @@ impl BypassOptions {
 
   pub fn at_least_one_option(&self) -> bool { !self.split_positions.is_empty()}
 
-  pub fn append_options(&mut self, mut options: Vec<SplitPosition>) {
+  pub fn append_options(&mut self, mut options: SplitPositions) {
     self.split_positions.append(options.as_mut());
     self.split_positions.sort_by(|a,b| {
       if (a.pos < 0 || b.pos < 0) && !(a.pos < 0 && b.pos < 0) { return a.pos.cmp(&b.pos).reverse(); }
@@ -132,18 +131,18 @@ impl BypassOptions {
   // TODO: use io-uring zero copy sending
   pub fn send_fake(fd: RawFd, current_pos: usize, buf: Vec<u8>) -> Result<(), anyhow::Error> {
     let mut w_bytes;
-    debug!("current_pos = {current_pos}");
+    debug!("fake current_pos = {current_pos}");
     let name = CString::new("name").unwrap();
-    let ffd = unsafe { libc::memfd_create(name.as_ptr(), 0)};
+    let ffd = unsafe { libc::memfd_create(name.as_ptr(), 0) };
     if ffd < 0 { fd.into_raw_fd(); bail!("ffd < 0"); }
     unsafe {
       w_bytes = libc::write(ffd, FAKE_TLS.as_ptr() as _, current_pos);
-      debug!("fake bytes write: {w_bytes}", );
+      trace!("fake bytes write: {w_bytes}", );
       libc::lseek(ffd, 0, libc::SEEK_SET);
       if libc::sendfile(fd, ffd, 0 as _, current_pos) < 0 { fd.into_raw_fd(); bail!("sendfile < 0"); }
       libc::lseek(ffd, 0, libc::SEEK_SET);
       w_bytes = libc::write(ffd, buf.as_ptr() as _, current_pos);
-      debug!("good bytes write: {w_bytes}");
+      trace!("good bytes write: {w_bytes}");
       fd.into_raw_fd();
     }
     Ok(())

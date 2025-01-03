@@ -6,15 +6,16 @@ use std::io;
 
 use tokio_uring::{self, buf::BoundedBuf};
 use tokio::time::timeout;
-use log::{debug, info, warn, error};
+use log::{trace, debug, info, warn, error};
 use socket2::{self, Socket};
 
-use crate::socks::{Socks4, Socks4Phase};
+use crate::socks::{Socks4, Socks4Phase, SOCKS4_VERSION};
 use crate::bypass::BypassOptions;
 
 
 const READ_TIMEOUT: Option<Duration> = Some(Duration::new(2, 0));
 const BUF_SIZE: usize = 1<<14;
+pub const BUF_SIZE_STR: &str = "16384";
 
 #[derive(Clone)]
 pub struct ProxyServer {
@@ -37,12 +38,12 @@ pub fn set_read_timeout(fd: RawFd, duration: Option<Duration>) -> io::Result<()>
 
 
 impl ProxyServer {
-  pub fn new(addr: SocketAddr, version: u8) -> Self {
+  pub fn new(addr: SocketAddr) -> Self {
     Self{
-      socks_version: version,
+      socks_version: SOCKS4_VERSION,
       server_addr: addr,
       msg_buf_size: BUF_SIZE,
-      bypass_options: BypassOptions::new(6)
+      bypass_options: BypassOptions::new()
     }
   }
 
@@ -96,10 +97,9 @@ impl ProxyServer {
       let proxy_fd = proxy_stream_rc.as_raw_fd();
       if is_tls_chello(&client_buf[..client_size]) {
         if self.bypass_options.at_least_one_option() {
-          debug!("desync");
           client_buf = self.bypass_options.desync(proxy_fd, proxy_stream_rc.clone(), client_buf, client_size).await?;
         } else {
-          error!("It also doesn't support");
+          error!("It doesn't support");
         }
       } else {
         let (res, slice) = proxy_stream_rc.write(client_buf.slice(..client_size)).submit().await; res?;
@@ -107,7 +107,7 @@ impl ProxyServer {
       }
     }
     proxy_stream_rc.shutdown(Shutdown::Both)?;
-    info!("shutdown with proxy");
+    trace!("shutdown with proxy");
     res.abort();
     Ok(())
   }

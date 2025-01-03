@@ -46,7 +46,7 @@ impl Socks4 {
   }
 
   pub async fn connect_to_dst(&mut self, input: &[u8]) -> Result<(), anyhow::Error> {
-    assert!(input.len() < 8, "input len must be >= 8 given: {}", input.len());
+    assert!(input.len() >= 8, "input len must be >= 8 given: {}", input.len());
     match &self.phase {
       Socks4Phase::ConnectReq => {
         match TcpStream::connect(self.proxy_addr).await {

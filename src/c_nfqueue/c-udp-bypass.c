@@ -78,27 +78,26 @@ static int cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct nfq_data *
   if (len >= 0) {
     struct iphdr *ip = (struct iphdr *)packetData;
     if (ip->protocol != IPPROTO_UDP)
-      fprintf(stderr, "Error: it isn't udp packet, maybe there is not iptables rule?\n");
+      fprintf(stderr, log_msg"Error: it isn't udp packet, maybe there is not iptables rule?\n");
     else {
       struct udphdr *udp = (struct udphdr *)(packetData + (ip->ihl * 4));
       if (send_udp_packet(ip->saddr, ip->daddr, udp->source, udp->dest, cb_data) != 0)
-        fprintf(stderr, "Failed to send UDP packet\n");
-      #ifdef DEBUG
-      else {
+        fprintf(stderr, log_msg"Failed to send UDP packet\n");
+      else if (cb_data->log_level == Trace) {
         struct in_addr src_addr, dst_addr;
         src_addr.s_addr = ip->saddr;
         dst_addr.s_addr = ip->daddr;
         char src_ip_str[INET_ADDRSTRLEN], dst_ip_str[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &src_addr, src_ip_str, INET_ADDRSTRLEN);
         inet_ntop(AF_INET, &dst_addr, dst_ip_str, INET_ADDRSTRLEN);
-        printf("Sent 64-byte UDP packet from %s:%d to %s:%d\n", src_ip_str, ntohs(udp->source), dst_ip_str, ntohs(udp->dest));
+        printf(log_msg"Sent 64-byte UDP packet from %s:%d to %s:%d\n", src_ip_str, ntohs(udp->source), dst_ip_str, ntohs(udp->dest));
       }
-      #endif
     }
   }
   uint32_t id = get_pkt_id(nfa);
   int ret = nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
-  printf("Sent original packet with ret: %d, id: %u\n", ret, id);
+  if (cb_data->log_level >= Debug) printf(log_msg"Sent original packet with ret: %d, id: %u\n", ret, id);
+  // printf("Sent original packet with ret: %d, id: %u\n", ret, id);
   return ret;
 }
 
@@ -107,7 +106,7 @@ int init_nfq(struct bypass_data *cb_data, struct nfq_handle **h, struct nfq_q_ha
   // TODO: add ipv6 support
   if (nfq_unbind_pf(*h, AF_INET) < 0) { bail("nfq_unbind_pf"); }
   if (nfq_bind_pf(*h, AF_INET) < 0) { bail("nfq_bind_pf"); }
-  if (!(*qh = nfq_create_queue(*h,  cb_data->queue_num, &cb, (void*)cb_data))) { bail("nfq_create_queue"); }
+  if (!(*qh = nfq_create_queue(*h, cb_data->queue_num, &cb, (void*)cb_data))) { bail("nfq_create_queue"); }
   if (nfq_set_mode(*qh, NFQNL_COPY_PACKET, 0xffff) < 0) { bail("nfq_set_mode"); }
   return 0;
 }

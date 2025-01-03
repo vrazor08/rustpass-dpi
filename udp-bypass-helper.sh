@@ -52,6 +52,9 @@ case $1 in
     echo "--prepare-ns - (env required BYPASS_MARK(num), QUEUE_NUM(num)) prepare network namespace for bypassing handling udp"
     echo "--del-ns - delete network namespace"
     echo "help for this message"
+    echo -e "\n\nShell in network namespace doesn't include all env vars which basic shell has."
+    echo "It's import because apps in this shell don't see micro and headphones."
+    echo "To fix it in piperwire you need to set env XDG_RUNTIME_DIR: export XDG_RUNTIME_DIR=/run/user/\$(id -u)"
     ;;
   "--prepare-ns" | "-p")
     if [[ ! -v BYPASS_MARK ]]; then

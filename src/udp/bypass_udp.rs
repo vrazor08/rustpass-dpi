@@ -21,7 +21,8 @@ struct BypassData {
   queue_num: u16,
   fake_ttl: u8,
   fake_pkt_payload: *const u8,
-  fake_pkt_payload_len: usize
+  fake_pkt_payload_len: usize,
+  log_level: i32
 }
 
 extern "C" {
@@ -43,14 +44,15 @@ pub struct UdpBypassHelpData {
 }
 
 impl UdpBypassHelpData {
-  pub fn new<const BUF_SIZE: usize>(mark: i32, queue_num: u16) -> Self {
+  pub fn new<const BUF_SIZE: usize>(mark: i32, queue_num: u16, fake_ttl: u8) -> Self {
     Self {
       bypass_data: BypassData {
         mark,
         queue_num,
-        fake_ttl: 6,
+        fake_ttl,
         fake_pkt_payload: &FAKE_UDP_PKT as *const u8,
-        fake_pkt_payload_len: FAKE_PKT_LEN
+        fake_pkt_payload_len: FAKE_PKT_LEN,
+        log_level: log::max_level() as i32
       },
       h: null_mut(),
       qh: null_mut(),
@@ -76,11 +78,11 @@ impl UdpBypassHelpData {
     }
   }
 
-  pub fn desync_udp(mut self) -> Result<std::thread::JoinHandle<()>, anyhow::Error> {
-    if unsafe { getuid() } != 0 { bail!("You need to be a root"); }
-    Ok(std::thread::spawn(move || {
+  pub fn desync_udp(mut self) -> std::thread::JoinHandle<()> {
+    if unsafe { getuid() } != 0 { panic!("You need to be a root"); }
+    std::thread::spawn(move || {
       self.run_nfq_loop();
-    }))
+    })
   }
 }
 
