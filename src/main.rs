@@ -72,6 +72,7 @@ struct Cmd {
   /// Byte sent outside the main stream
   #[structopt(short, long, default_value="97")]
   oob_data: u8,
+
   /// Use udp desync. Warning for it you need to run rustpass-dpi as root.
   /// You can also run udp-bypass-helper.sh for creating new network namespace.
   /// It can be useful when you want to desync udp trafic only for some apps.
@@ -118,7 +119,6 @@ fn main() {
   let mut opt = Cmd::from_args();
   let mut server = ProxyServer::new(SocketAddr::from_str(opt.proxy_addr.as_str()).unwrap());
   let mut desync_options = SplitPositions::new();
-  let mut udp_options = UdpBypassHelpData::new::<UDP_RECV_BUF_SIZE>(opt.mark, opt.nfqueue_num, opt.fake_ttl);
   let mut udp_thread = None;
   info!("Server listening on {}", opt.proxy_addr);
   server.set_msg_buf_size(opt.buf_size);
@@ -128,8 +128,9 @@ fn main() {
   server.bypass_options.oob_data = opt.oob_data;
   if opt.timeout > 0.0 { server.bypass_options.timeout = Some(Duration::from_secs_f32(opt.timeout)); }
   if opt.udp_desync {
-    info!("Udp desync options:\n{:#?}", udp_options);
+    let udp_options = Box::leak(Box::new(UdpBypassHelpData::new::<UDP_RECV_BUF_SIZE>(opt.mark, opt.nfqueue_num, opt.fake_ttl)));
     udp_options.init_queue().unwrap();
+    info!("Udp desync options:\n{:#?}", udp_options);
     udp_thread = Some(udp_options.desync_udp());
   }
   info!("Desync options:\n{:#?}", server.bypass_options);

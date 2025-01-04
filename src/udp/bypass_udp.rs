@@ -10,10 +10,16 @@ const FAKE_PKT_LEN: usize = 64;
 static FAKE_UDP_PKT: [u8; FAKE_PKT_LEN] = [0; FAKE_PKT_LEN];
 
 #[repr(C)]
-struct NfqHandle;
+struct NfqHandle {
+  _data: [u8; 0],
+  _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
+}
 
 #[repr(C)]
-struct NfqQHandle;
+struct NfqQHandle {
+  _data: [u8; 0],
+  _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
+}
 
 #[repr(C)]
 struct BypassData {
@@ -78,9 +84,9 @@ impl UdpBypassHelpData {
     }
   }
 
-  pub fn desync_udp(mut self) -> std::thread::JoinHandle<()> {
+  pub fn desync_udp(&'static mut self) -> std::thread::JoinHandle<()> {
     if unsafe { getuid() } != 0 { panic!("You need to be a root"); }
-    std::thread::spawn(move || {
+    std::thread::spawn(|| {
       self.run_nfq_loop();
     })
   }
@@ -88,6 +94,7 @@ impl UdpBypassHelpData {
 
 impl Drop for UdpBypassHelpData {
   fn drop(&mut self) {
+    log::trace!("droping UdpBypassHelpData");
     unsafe {
       destroy_nfq(self.h, self.qh);
     }
