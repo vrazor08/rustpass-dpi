@@ -108,6 +108,22 @@ impl PushPositions for SplitPositions {
   }
 }
 
+fn run_bypassing(server: ProxyServer, udp_options: Option<UdpBypassHelpData>) {
+  std::thread::scope(|s| {
+    s.spawn(|| {
+      info!("Desync options:\n{:#?}", server.bypass_options);
+      server.start_server();
+    });
+    if let Some(mut udp_opts) = udp_options {
+      if unsafe { libc::getuid() } != 0 { panic!("You need to be a root"); }
+      info!("Udp desync options:\n{:#?}", udp_opts);
+      udp_opts.init_queue().unwrap();
+      s.spawn(|| {
+        udp_opts.run_nfq_loop();
+      });
+    }
+  })
+}
 #[cfg(not(target_os = "linux"))]
 fn main() {
   eprintln!("Only linux supported");
@@ -119,7 +135,7 @@ fn main() {
   let mut opt = Cmd::from_args();
   let mut server = ProxyServer::new(SocketAddr::from_str(opt.proxy_addr.as_str()).unwrap());
   let mut desync_options = SplitPositions::new();
-  let mut udp_thread = None;
+  let mut udp_options = None;
   info!("Server listening on {}", opt.proxy_addr);
   server.set_msg_buf_size(opt.buf_size);
   desync_options.push_split_pos(&mut opt);
@@ -127,13 +143,6 @@ fn main() {
   server.bypass_options.fake_ttl = opt.fake_ttl as u32;
   server.bypass_options.oob_data = opt.oob_data;
   if opt.timeout > 0.0 { server.bypass_options.timeout = Some(Duration::from_secs_f32(opt.timeout)); }
-  if opt.udp_desync {
-    let udp_options = Box::leak(Box::new(UdpBypassHelpData::new::<UDP_RECV_BUF_SIZE>(opt.mark, opt.nfqueue_num, opt.fake_ttl)));
-    udp_options.init_queue().unwrap();
-    info!("Udp desync options:\n{:#?}", udp_options);
-    udp_thread = Some(udp_options.desync_udp());
-  }
-  info!("Desync options:\n{:#?}", server.bypass_options);
-  server.start_server();
-  if let Some(thread) = udp_thread { thread.join().unwrap(); }
+  if opt.udp_desync { udp_options = Some(UdpBypassHelpData::new::<UDP_RECV_BUF_SIZE>(opt.mark, opt.nfqueue_num, opt.fake_ttl)); }
+  run_bypassing(server, udp_options);
 }

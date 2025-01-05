@@ -78,17 +78,10 @@ impl UdpBypassHelpData {
     Ok(())
   }
 
-  pub fn run_nfq_loop(&mut self) {
+  pub fn run_nfq_loop(mut self) {
     unsafe {
       run_nfq(self.h, self.buf.as_mut_ptr() as *mut c_char, self.buf.len());
     }
-  }
-
-  pub fn desync_udp(&'static mut self) -> std::thread::JoinHandle<()> {
-    if unsafe { getuid() } != 0 { panic!("You need to be a root"); }
-    std::thread::spawn(|| {
-      self.run_nfq_loop();
-    })
   }
 }
 
