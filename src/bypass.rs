@@ -7,7 +7,6 @@ use tokio_uring::net::TcpStream;
 use tokio_uring::buf::BoundedBuf;
 use socket2::{self, Socket};
 use log::{trace, debug};
-use libc;
 
 const DEFAULT_TTL: u32 = 64;
 
@@ -118,7 +117,6 @@ impl BypassOptions {
     });
   }
 
-  // TODO: use io-uring
   pub fn write_oob(&self, fd: RawFd, buf: &[u8]) -> io::Result<usize> {
     let mut buf = buf.to_vec();
     buf.push(self.oob_data);
@@ -128,7 +126,6 @@ impl BypassOptions {
     ret
   }
 
-  // TODO: use io-uring zero copy sending
   pub fn send_fake(fd: RawFd, current_pos: usize, buf: Vec<u8>) -> Result<(), anyhow::Error> {
     let mut w_bytes;
     debug!("fake current_pos = {current_pos}");

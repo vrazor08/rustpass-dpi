@@ -110,7 +110,13 @@ But firejail also has some limitations for example it can not run snap and flatp
 ------
 
 ## Building
-Building is very simple:
+
+You need to install `libnetfilter_queue` this is used for udp desync and then build rustpass-dpi:
 ```sh
 cargo build --release
 ```
+Or you can compile with:
+```sh
+cargo build --release --no-default-features
+```
+But you can not use udp desync.

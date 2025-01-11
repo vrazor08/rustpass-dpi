@@ -4,8 +4,14 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define bail(msg) perror(msg); return -1
-#define close_bail(fd, msg) close(fd); bail(msg)
+#define bail(msg) do { \
+  perror(msg); \
+  return -1; \
+  } while(0);
+#define close_bail(fd, msg) do { \
+  close(fd); \
+  bail(msg) \
+  } while(0);
 
 const int yes = 1;
 typedef enum {

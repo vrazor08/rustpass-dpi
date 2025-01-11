@@ -1,7 +1,6 @@
 mod bypass;
 mod proxy_server;
 mod socks;
-mod udp;
 
 use std::{net::SocketAddr, time::Duration};
 use std::str::FromStr;
@@ -9,12 +8,35 @@ use std::str::FromStr;
 use env_logger::Env;
 use log::info;
 use structopt::StructOpt;
+use cfg_block::cfg_block;
 
 use bypass::{SplitPosition, SplitPositions, DesyncType};
 use proxy_server::{ProxyServer, BUF_SIZE_STR};
-use udp::UdpBypassHelpData;
 
-const UDP_RECV_BUF_SIZE: usize = 2048;
+cfg_block! {
+  #[cfg(feature = "udp-desync")] {
+    mod udp;
+    use udp::UdpBypassHelpData;
+    const UDP_RECV_BUF_SIZE: usize = 2048;
+
+    fn run_bypassing(server: ProxyServer, udp_options: Option<UdpBypassHelpData>) {
+      std::thread::scope(|s| {
+        s.spawn(|| {
+          info!("Desync options:\n{:#?}", server.bypass_options);
+          server.start_server();
+        });
+        s.spawn(|| {
+          if let Some(mut udp_opts) = udp_options {
+            if unsafe { libc::getuid() } != 0 { panic!("You need to be a root"); }
+            info!("Udp desync options:\n{:#?}", udp_opts);
+            udp_opts.init_queue().unwrap();
+            udp_opts.run_nfq_loop();
+          }
+        });
+      });
+    }
+  }
+}
 
 #[allow(dead_code)]
 #[derive(Debug, StructOpt)]
@@ -104,34 +126,12 @@ impl PushPositions for SplitPositions {
   }
 }
 
-fn run_bypassing(server: ProxyServer, udp_options: Option<UdpBypassHelpData>) {
-  std::thread::scope(|s| {
-    s.spawn(|| {
-      info!("Desync options:\n{:#?}", server.bypass_options);
-      server.start_server();
-    });
-    s.spawn(|| {
-      if let Some(mut udp_opts) = udp_options {
-        if unsafe { libc::getuid() } != 0 { panic!("You need to be a root"); }
-        info!("Udp desync options:\n{:#?}", udp_opts);
-        udp_opts.init_queue().unwrap();
-        udp_opts.run_nfq_loop();
-      }
-    });
-  });
-}
-#[cfg(not(target_os = "linux"))]
-fn main() {
-  eprintln!("Only linux supported");
-}
-
 #[cfg(target_os = "linux")]
 fn main() {
   env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
   let mut opt = Cmd::from_args();
   let mut server = ProxyServer::new(SocketAddr::from_str(opt.proxy_addr.as_str()).unwrap());
   let mut desync_options = SplitPositions::new();
-  let mut udp_options = None;
   info!("Server listening on {}", opt.proxy_addr);
   server.set_msg_buf_size(opt.buf_size);
   desync_options.push_split_pos(&mut opt);
@@ -139,6 +139,15 @@ fn main() {
   server.bypass_options.fake_ttl = opt.fake_ttl as u32;
   server.bypass_options.oob_data = opt.oob_data;
   if opt.timeout > 0.0 { server.bypass_options.timeout = Some(Duration::from_secs_f32(opt.timeout)); }
-  if opt.udp_desync { udp_options = Some(UdpBypassHelpData::new::<UDP_RECV_BUF_SIZE>(opt.mark, opt.nfqueue_num, opt.fake_ttl)); }
-  run_bypassing(server, udp_options);
+  #[cfg(feature = "udp-desync")] {
+    let mut udp_options = None;
+    if opt.udp_desync { udp_options = Some(UdpBypassHelpData::new::<UDP_RECV_BUF_SIZE>(opt.mark, opt.nfqueue_num, opt.fake_ttl)); }
+    run_bypassing(server, udp_options);
+  }
+  #[cfg(not(feature = "udp-desync"))] {
+    if opt.udp_desync {
+      panic!("For udp_desync you need to compile rustpass-dpi with --features udp-desync or with default features");
+    }
+    server.start_server();
+  }
 }
