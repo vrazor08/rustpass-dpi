@@ -65,7 +65,7 @@ struct Cmd {
   /// If you get something like this when connecting:
   /// Secure Connection Failed
   /// Error code: SSL_ERROR_PROTOCOL_VERSION_ALERT
-  /// then decreasing fake-ttl may help
+  /// decreasing fake-ttl may help
   #[structopt(short="F", long, default_value="6")]
   fake_ttl: u8,
 
@@ -76,10 +76,6 @@ struct Cmd {
   /// Use udp desync. Warning for it you need to run rustpass-dpi as root.
   /// You can also run udp-bypass-helper.sh for creating new network namespace.
   /// It can be useful when you want to desync udp trafic only for some apps.
-  /// You can run this apps in this network namespace: `sudo ip netns exec ns1 bash`.
-  /// This command create root shell(for your user shell run: `sudo ip netns exec ns1 sudo -u <user_name> bash`) that uses network namespace ns1 and you can run apps from this shell and there udp traffic will desync.
-  /// But for it you also need to run rastpass-dpi from this shell: `sudo ip netns exec ns1 rustpass-dpi <args>`.
-  /// Run ./udp-bypass-helper.sh --help - for more info about it
   #[structopt(short="U", long)]
   udp_desync: bool,
 
@@ -114,15 +110,15 @@ fn run_bypassing(server: ProxyServer, udp_options: Option<UdpBypassHelpData>) {
       info!("Desync options:\n{:#?}", server.bypass_options);
       server.start_server();
     });
-    if let Some(mut udp_opts) = udp_options {
-      if unsafe { libc::getuid() } != 0 { panic!("You need to be a root"); }
-      info!("Udp desync options:\n{:#?}", udp_opts);
-      udp_opts.init_queue().unwrap();
-      s.spawn(|| {
+    s.spawn(|| {
+      if let Some(mut udp_opts) = udp_options {
+        if unsafe { libc::getuid() } != 0 { panic!("You need to be a root"); }
+        info!("Udp desync options:\n{:#?}", udp_opts);
+        udp_opts.init_queue().unwrap();
         udp_opts.run_nfq_loop();
-      });
-    }
-  })
+      }
+    });
+  });
 }
 #[cfg(not(target_os = "linux"))]
 fn main() {

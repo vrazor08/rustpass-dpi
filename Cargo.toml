@@ -3,13 +3,16 @@ name = "rustpass-dpi"
 version = "0.1.0"
 edition = "2021"
 
+[profile.release]
+panic = "abort"
+
 [dependencies]
 anyhow = "1.0.86"
 env_logger = "0.11.5"
 libc = "0.2.162"
 log = "0.4.22"
 socket2 = "0.5.7"
-structopt = { version = "0.3.26", features = ["color"] }
+structopt = "0.3.26"
 tokio = { version = "1.40.0", features = ["time"] }
 tokio-uring = "0.5.0"
 

@@ -4,7 +4,7 @@ use std::os::raw::c_char;
 use std::str::FromStr;
 
 use anyhow::bail;
-use libc::{__errno_location, getuid};
+use libc::__errno_location;
 
 const FAKE_PKT_LEN: usize = 64;
 static FAKE_UDP_PKT: [u8; FAKE_PKT_LEN] = [0; FAKE_PKT_LEN];
