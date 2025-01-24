@@ -62,7 +62,6 @@ impl Socks4 {
                 .submit()
                 .await; res?;
             return Err(anyhow::Error::new(e));
-            // return Err(e as anyhow::Error);
           }
         }
       }

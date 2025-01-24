@@ -22,7 +22,6 @@ cfg_block! {
     fn run_bypassing(server: ProxyServer, udp_options: Option<UdpBypassHelpData>) {
       std::thread::scope(|s| {
         s.spawn(|| {
-          info!("Desync options:\n{:#?}", server.bypass_options);
           server.start_server();
         });
         s.spawn(|| {
@@ -126,7 +125,6 @@ impl PushPositions for SplitPositions {
   }
 }
 
-#[cfg(target_os = "linux")]
 fn main() {
   env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
   let mut opt = Cmd::from_args();
@@ -139,6 +137,7 @@ fn main() {
   server.bypass_options.fake_ttl = opt.fake_ttl as u32;
   server.bypass_options.oob_data = opt.oob_data;
   if opt.timeout > 0.0 { server.bypass_options.timeout = Some(Duration::from_secs_f32(opt.timeout)); }
+  info!("Desync options:\n{:#?}", server.bypass_options);
   #[cfg(feature = "udp-desync")] {
     let mut udp_options = None;
     if opt.udp_desync { udp_options = Some(UdpBypassHelpData::new::<UDP_RECV_BUF_SIZE>(opt.mark, opt.nfqueue_num, opt.fake_ttl)); }
