@@ -1,24 +1,26 @@
+use core::marker::{PhantomData, PhantomPinned};
+
 use std::fmt::{self, Debug};
 use std::ptr::null_mut;
 use std::os::raw::c_char;
-use std::str::FromStr;
 
 use anyhow::bail;
 use libc::__errno_location;
 
+pub const UDP_RECV_BUF_SIZE: usize = 2048;
 const FAKE_PKT_LEN: usize = 64;
 static FAKE_UDP_PKT: [u8; FAKE_PKT_LEN] = [0; FAKE_PKT_LEN];
 
 #[repr(C)]
 struct NfqHandle {
   _data: [u8; 0],
-  _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
+  _marker: PhantomData<(*mut u8, PhantomPinned)>,
 }
 
 #[repr(C)]
 struct NfqQHandle {
   _data: [u8; 0],
-  _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
+  _marker: PhantomData<(*mut u8, PhantomPinned)>,
 }
 
 #[repr(C)]
@@ -99,7 +101,7 @@ unsafe impl Send for UdpBypassHelpData {}
 impl Debug for BypassData {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     let mut payload;
-    if self.fake_pkt_payload.is_null() { payload = String::from_str("NULL").unwrap(); }
+    if self.fake_pkt_payload.is_null() { payload = "NULL".into(); }
     else {
       payload = String::with_capacity(self.fake_pkt_payload_len);
       for i in 0..self.fake_pkt_payload_len as isize {
@@ -126,7 +128,7 @@ impl Debug for UdpBypassHelpData {
       .field("bypass_data", &self.bypass_data)
       .field("h", h_fmt)
       .field("qh", qh_fmt)
-      .field("recv_buf", &format!("Box<u8; {}>", self.buf.len()))
+      .field("recv_buf", &format!("Box<[u8; {}]>", self.buf.len()))
       .finish()
   }
 }

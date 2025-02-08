@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
 
 set -e
 if [ -f "/tmp/IP_FORWARD_BEFORE" ]; then
@@ -28,7 +28,6 @@ prepare_ns() {
   echo $IP_FORWARD_BEFORE > /tmp/IP_FORWARD_BEFORE
 }
 
-# FIXME: uncorrect deleting
 del_ns() {
   set +e
   ip netns pids ns1 | xargs kill
@@ -43,7 +42,7 @@ del_ns() {
 }
 
 if [ $(id -u) -ne 0 ]; then
-  echo "Please run this script as root or using sudo!"
+  echo "Please run this script using sudo!"
   exit 1
 fi
 
@@ -52,20 +51,17 @@ case $1 in
     echo "--prepare-ns - (env required BYPASS_MARK(num), QUEUE_NUM(num)) prepare network namespace for bypassing handling udp"
     echo "--del-ns - delete network namespace"
     echo "help for this message"
-    echo -e "\n\nShell in network namespace doesn't include all env vars which basic shell has."
-    echo "It's import because apps in this shell don't see micro and headphones."
-    echo "To fix it in piperwire you need to set env XDG_RUNTIME_DIR: export XDG_RUNTIME_DIR=/run/user/\$(id -u)"
     ;;
   "--prepare-ns" | "-p")
     if [[ ! -v BYPASS_MARK ]]; then
-      echo "env BYPASS_MARK(num) must be set"
-      exit 1
-    elif [[ ! -v QUEUE_NUM ]]; then
-      echo "env QUEUE_NUM(num) must be set"
-      exit 1
-    else
-      prepare_ns "$BYPASS_MARK" "$QUEUE_NUM"
+      BYPASS_MARK=12345
+      echo "[warning] BYPASS_MARK set to $BYPASS_MARK"
     fi
+    if [[ ! -v QUEUE_NUM ]]; then
+      QUEUE_NUM=0
+      echo "[warning] QUEUE_NUM set to $QUEUE_NUM"
+    fi
+    prepare_ns "$BYPASS_MARK" "$QUEUE_NUM"
     echo "ns1 was created successful"
     ;;
   "--del-ns" | "-d")

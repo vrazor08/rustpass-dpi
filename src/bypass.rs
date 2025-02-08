@@ -122,7 +122,7 @@ impl BypassOptions {
     buf.push(self.oob_data);
     let sock = unsafe { Socket::from_raw_fd(fd) };
     let ret = sock.send_out_of_band(&buf);
-    sock.into_raw_fd();
+    let _ = sock.into_raw_fd();
     ret
   }
 
@@ -131,16 +131,16 @@ impl BypassOptions {
     debug!("fake current_pos = {current_pos}");
     let name = CString::new("name").unwrap();
     let ffd = unsafe { libc::memfd_create(name.as_ptr(), 0) };
-    if ffd < 0 { fd.into_raw_fd(); bail!("ffd < 0"); }
+    if ffd < 0 { let _ = fd.into_raw_fd(); bail!("ffd < 0"); }
     unsafe {
       w_bytes = libc::write(ffd, FAKE_TLS.as_ptr() as _, current_pos);
       trace!("fake bytes write: {w_bytes}", );
       libc::lseek(ffd, 0, libc::SEEK_SET);
-      if libc::sendfile(fd, ffd, 0 as _, current_pos) < 0 { fd.into_raw_fd(); bail!("sendfile < 0"); }
+      if libc::sendfile(fd, ffd, 0 as _, current_pos) < 0 { let _ = fd.into_raw_fd(); bail!("sendfile < 0"); }
       libc::lseek(ffd, 0, libc::SEEK_SET);
       w_bytes = libc::write(ffd, buf.as_ptr() as _, current_pos);
       trace!("good bytes write: {w_bytes}");
-      fd.into_raw_fd();
+      let _ = fd.into_raw_fd();
     }
     Ok(())
   }
@@ -148,7 +148,7 @@ impl BypassOptions {
   pub fn set_ttl(fd: RawFd, ttl: u32) -> io::Result<()> {
     let sock = unsafe { Socket::from_raw_fd(fd) };
     let ret = sock.set_ttl(ttl);
-    sock.into_raw_fd();
+    let _ = sock.into_raw_fd();
     ret
   }
 }

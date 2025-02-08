@@ -14,10 +14,10 @@ use crate::bypass::BypassOptions;
 
 
 const READ_TIMEOUT: Option<Duration> = Some(Duration::new(2, 0));
-const BUF_SIZE: usize = 1<<14;
-pub const BUF_SIZE_STR: &str = "16384";
+const BUF_SIZE: usize = 16384;
+pub const BUF_SIZE_STR: &str = concat!(16384);
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ProxyServer {
   socks_version: u8,
   pub server_addr: SocketAddr,
@@ -32,7 +32,7 @@ fn is_tls_chello(input: &[u8]) -> bool {
 pub fn set_read_timeout(fd: RawFd, duration: Option<Duration>) -> io::Result<()> {
   let sock = unsafe { Socket::from_raw_fd(fd) };
   let res = sock.set_read_timeout(duration);
-  sock.into_raw_fd();
+  let _ = sock.into_raw_fd();
   res
 }
 
@@ -96,11 +96,7 @@ impl ProxyServer {
       client_buf = nbuf;
       let proxy_fd = proxy_stream_rc.as_raw_fd();
       if is_tls_chello(&client_buf[..client_size]) {
-        if self.bypass_options.at_least_one_option() {
-          client_buf = self.bypass_options.desync(proxy_fd, proxy_stream_rc.clone(), client_buf, client_size).await?;
-        } else {
-          error!("It doesn't support");
-        }
+        client_buf = self.bypass_options.desync(proxy_fd, proxy_stream_rc.clone(), client_buf, client_size).await?;
       } else {
         let (res, slice) = proxy_stream_rc.write(client_buf.slice(..client_size)).submit().await; res?;
         client_buf = slice.into_inner();
