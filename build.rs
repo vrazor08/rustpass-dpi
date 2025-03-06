@@ -10,6 +10,9 @@ fn main() {
     println!("cargo:rerun-if-changed=./src/c_nfqueue/c-udp-bypass.c");
     println!("cargo:rerun-if-changed=./src/c_nfqueue/c-udp-bypass.h");
   }
+  #[cfg(not(feature = "udp-desync"))] {
+    #[cfg(feature = "suid")] { compile_error!("udp-desync is not set but suid is set. It isn't make sense!"); }
+  }
 }
 
 #[cfg(not(target_os = "linux"))]

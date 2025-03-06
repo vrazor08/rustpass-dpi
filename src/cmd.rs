@@ -112,7 +112,6 @@ macro_rules! gen_subcommand {
         #[structopt(short="N", long, default_value, hide_default_value=true)]
         netns: String,
 
-
         $(#[$attr_tcp])*
         /// TCP command
         #[structopt(subcommand)]
@@ -132,8 +131,6 @@ macro_rules! gen_subcommands {
 
 gen_subcommands!(Subcommands, TcpSubcommand, UdpSubcommand);
 
-
-
 #[derive(Clone, Debug, StructOpt)]
 #[structopt(name = "rustpass-dpi")]
 #[structopt(global_setting = structopt::clap::AppSettings::AllowNegativeNumbers)]
@@ -144,6 +141,12 @@ gen_subcommands!(Subcommands, TcpSubcommand, UdpSubcommand);
 pub struct Cmd {
   #[structopt(subcommand)]
   pub cmd: Subcommands,
+
+  /// Experimental. Run app with rustpass-dpi. It makes sense only with --netns option.
+  /// To use this option you need to set suid bit.
+  /// If you use this option you don't to run rustpass-dpi with sudo
+  #[structopt(short, long)]
+  pub run_app: Option<String>,
 }
 
 impl TryInto<ProxyServer> for Subcommands {
@@ -173,7 +176,6 @@ impl TryInto<ProxyServer> for Subcommands {
       }
     }
 
-    #[inline]
     fn create_server(proxy_addr: String, fake_ttl: u8, buf_size: usize, timeout: f32, oob_data: u8, desync_ves: DesyncVecs) -> ProxyServer {
       let mut server = ProxyServer::new(SocketAddr::from_str(proxy_addr.as_str()).unwrap());
       let mut desync_options = SplitPositions::new();

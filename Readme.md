@@ -16,13 +16,13 @@
 rustpass-dpi --help
 ```
 ```
-rustpass-dpi 0.1.0
+rustpass-dpi 0.1.1
 Bypass dpi written in rust inspired by byedpi and zapret.
 
 Rustpass-dpi supports bypassing tls using socks4 proxy and udp using nfqueue and network namespace(if need)
 
 USAGE:
-    rustpass-dpi <SUBCOMMAND>
+    rustpass-dpi [OPTIONS] <SUBCOMMAND>
 
 FLAGS:
     -h, --help
@@ -32,17 +32,23 @@ FLAGS:
             Prints version information
 
 
+OPTIONS:
+    -r, --run-app <run-app>
+            Experimental. Run app with rustpass-dpi. It makes sense only with --netns option. To use this option you
+            need to set suid bit. If you use this option you don't to run rustpass-dpi with sudo
+
 SUBCOMMANDS:
     help    Prints this message or the help of the given subcommand(s)
     tcp     Use to specify tcp desync options
     udp     Use to specify udp desync options and network namespace
+
 ```
 
 ```sh
 rustpass-dpi tcp --help
 ```
 ```
-rustpass-dpi-tcp 0.1.0
+rustpass-dpi-tcp 0.1.1
 Use to specify tcp desync options
 
 Warning: If you use options that expect a list of args, such as: --split, you need to put a dot at the end if the next
@@ -105,7 +111,7 @@ SUBCOMMANDS:
 rustpass-dpi udp --help
 ```
 ```
-rustpass-dpi-udp 0.1.0
+rustpass-dpi-udp 0.1.1
 Use to specify udp desync options and network namespace
 
 Warning: for all of these options you need to be a root
@@ -249,6 +255,17 @@ firejail --netns=<namespace> --name=discord_app discord --proxy-server="socks4:/
 ```
 
 *Note*: Firejail may have limitations with certain application formats like Snap or Flatpak.
+
+Or compile with --features suid, then set executable owner as root and set suid bit:
+```sh
+cargo install --path . --features suid
+sudo chown root:root rustpass-dpi
+sudo chmod 4755 rustpass-dpi
+```
+And then run app in --run-app option:
+```sh
+rustpass-dpi -r "discord --proxy-server='socks4://127.0.0.1:6969'" tcp 127.0.0.1:6969 -s 1 -f -1 -b 663 udp --netns ns1 --mark 12345 --nfqueue-num 0
+```
 
 ## License
 

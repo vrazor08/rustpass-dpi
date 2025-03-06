@@ -1,19 +1,15 @@
-use std::os::fd::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
+use std::os::fd::AsRawFd;
 use std::net::{Shutdown, SocketAddr};
 use std::rc::Rc;
 use std::time::Duration;
-use std::io;
 
 use tokio_uring::{self, buf::BoundedBuf};
 use tokio::time::timeout;
-use log::{trace, debug, info, warn, error};
-use socket2::{self, Socket};
+use log::{trace, debug, info, error};
 
 use crate::socks::{Socks4, Socks4Phase, SOCKS4_VERSION};
 use crate::bypass::BypassOptions;
 
-
-const READ_TIMEOUT: Option<Duration> = Some(Duration::new(2, 0));
 const BUF_SIZE: usize = 16384;
 pub const BUF_SIZE_STR: &str = concat!(16384);
 
@@ -28,14 +24,6 @@ pub struct ProxyServer {
 fn is_tls_chello(input: &[u8]) -> bool {
   input.len() > 5 && u16::from_be_bytes([input[0], input[1]]) == 0x1603 && input[5] == 1
 }
-
-pub fn set_read_timeout(fd: RawFd, duration: Option<Duration>) -> io::Result<()> {
-  let sock = unsafe { Socket::from_raw_fd(fd) };
-  let res = sock.set_read_timeout(duration);
-  let _ = sock.into_raw_fd();
-  res
-}
-
 
 impl ProxyServer {
   pub fn new(addr: SocketAddr) -> Self {
@@ -62,7 +50,7 @@ impl ProxyServer {
           (result, npbuf) = ret;
           first_pkt = false;
         } else {
-          warn!("timeout");
+          debug!("timeout");
           break;
         }
       } else { (result, npbuf) = read_stream.read(proxy_buf).await; }
@@ -109,7 +97,6 @@ impl ProxyServer {
   }
 
   pub async fn handle_client(self, stream: tokio_uring::net::TcpStream) -> Result<(), anyhow::Error> {
-    set_read_timeout(stream.as_raw_fd(), READ_TIMEOUT)?;
     let first_input = vec![0u8; self.msg_buf_size];
     let (result, first_input) = stream.read(first_input).await;
     let n = result?;
@@ -119,13 +106,9 @@ impl ProxyServer {
     }
     let mut socks4 = Socks4::is_connect_req(&first_input[..n], stream)?;
     socks4.connect_to_dst(&first_input[..n]).await?;
-    if let Some(pr_stream) = socks4.proxy_stream.as_ref() {
-      set_read_timeout(pr_stream.as_raw_fd(), READ_TIMEOUT)?;
-      pr_stream.set_nodelay(true)?;
-    }
+    if let Some(pr_stream) = socks4.proxy_stream.as_ref() { pr_stream.set_nodelay(true)?; }
     socks4.phase = Socks4Phase::Proxing;
     self.socks_proxy(socks4).await?;
-    warn!("exit from proxy function");
     Ok(())
   }
 
